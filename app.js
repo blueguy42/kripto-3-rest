@@ -11,6 +11,7 @@ app.use(cors());
 
 // Enable JSON parsing for all routes
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
 // Routes
 app.get('/', (req, res) => {
