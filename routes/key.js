@@ -48,4 +48,40 @@ router.post('/hash', async (req, res) => {
   }
 });
 
+router.post('/sign', async (req, res) => {
+  try {
+    const { message, privateKey } = req.body;
+    const hashed = await crypto.sha3.hash(message);
+    const response = await crypto.ecdsa.sign(hashed, privateKey);
+    res.status(200).json({ signature: response });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ msg: err.message });
+  }
+});
+
+router.post('/verify', async (req, res) => {
+  try {
+    const { message, signature, publicKey } = req.body;
+    const hashed = await crypto.sha3.hash(message);
+    const response = await crypto.ecdsa.verify(hashed, signature, publicKey);
+    res.status(200).json({ valid: response });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ msg: err.message });
+  }
+});
+
+router.get('/generateKey', async (req, res) => {
+  try {
+    const privateKey = await crypto.ecdsa.getRandomPrivateKey();
+    const publicKey = await crypto.ecdsa.getPublicKey(privateKey);
+    res.status(200).json({ privateKey: privateKey, publicKey: publicKey });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ msg: err.message });
+  }
+});
+
+
 module.exports = router;
