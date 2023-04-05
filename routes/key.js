@@ -95,16 +95,27 @@ router.post('/getPublicKey', async (req, res) => {
 });
 
 
-// router.post('/encrypt', async (req, res) => {
-//   try {
-//     const { message, key } = req.body;
-//     const response = await crypto.omnium.encrypt(message, key);
-//     res.status(200).json({ encrypted: response });
-//   } catch (err) {
-//     console.error(err);
-//     res.status(500).json({ msg: err.message });
-//   }
-// });
+router.post('/encrypt', async (req, res) => {
+  try {
+    const { plaintext, key } = req.body;
+    const response = await crypto.omnium.encrypt(plaintext, key);
+    res.status(200).json({ ciphertext : response });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ msg: err.message });
+  }
+});
+
+router.post('/decrypt', async (req, res) => {
+  try {
+    const { ciphertext, key } = req.body;
+    const response = await crypto.omnium.encrypt(ciphertext, key);
+    res.status(200).json({ plaintext : response });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ msg: err.message });
+  }
+});
 
 
 module.exports = router;
