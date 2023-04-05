@@ -16,7 +16,7 @@ function uint256(x, base) {
 
 // Generate a random private key
 async function getRandomPrivateKey() {
-    return uint256(randomBytes(32)).umod(P).toString(16).padStart(64, '0');
+    return uint256(randomBytes(32)).umod(curve.p).toString(16).padStart(64, '0');
 }
   
 // Compute the public key from the private key
@@ -26,13 +26,6 @@ async function getPublicKey(privateKey) {
     const inv = publicKey[2].invm(curve.p)
     publicKey = [publicKey[0].mul(inv.mul(inv).umod(curve.p)).umod(curve.p), 
                 publicKey[1].mul(inv.mul(inv.mul(inv).umod(curve.p)).umod(curve.p)).umod(curve.p)]
-    // const pubX = uint256('5b75fd5f49e78191a45e1c9438644fe5d065ea98920c63e9eef86e151e99b809', 16)
-    // const pubY = uint256('4eef2a826f1e6d13a4dde4e54800e8d282a2089a873072002e0a3a21eae5763a', 16)
-    // const pk = pubX.toString(16).padStart(64, '0') + pubY.toString(16).padStart(64, '0');
-    // const sig = sign("483ADA7726A3C4655DA4FBFC0E1108A8FD17B448A68554199C47D08FFB10D4B8",
-    //       "79BE667EF9DCBBAC55A06295CE870B07029BFCDB2DCE28D959F2815B16F81798")
-    // const valid = verify("483ADA7726A3C4655DA4FBFC0E1108A8FD17B448A68554199C47D08FFB10D4B8", sig, pk )
-    // console.log(valid)
     return publicKey[0].toString(16).padStart(64, '0') + publicKey[1].toString(16).padStart(64, '0');
 }
 
@@ -122,9 +115,12 @@ function pointMultiply(point, scalar, curve) {
 // Compute the signature
 async function sign(hash, privateKey) {
     while (true) {
-        const k = uint256(randomBytes(32), 16).umod(curve.p);
+        const k = uint256(randomBytes(32)).umod(curve.p);
         const G = [curve.Gx, curve.Gy, uint256(1)];
-        const r = pointMultiply(G, k, curve);
+        let r = pointMultiply(G, k, curve);
+        const inv = r[2].invm(curve.p)
+        r = [mulmod(r[0], mulmod(inv, inv, curve.p), curve.p),
+            mulmod(r[1], mulmod(inv, mulmod(inv, inv, curve.p), curve.p), curve.p)]
         if (r[0] == 0) continue;
 
         const e = uint256(hash, 16);
@@ -132,26 +128,20 @@ async function sign(hash, privateKey) {
         s = mulmod(k.invm(curve.n), addmod(e, mulmod(r[0], d, curve.n), curve.n), curve.n);
         if (s == 0) continue;
         if (s.testn(255)) continue;
-        return {
-          r: r[0].toString(16).padStart(64, '0'),
-          s: s.toString(16).padStart(64, '0')
-        };
+        return r[0].toString(16).padStart(64, '0') + s.toString(16).padStart(64, '0');
     }
 }
 
 // Verify the signature
 async function verify(hash, signature, publicKey) {
-    const r = uint256(signature.r, 16);
-    const s = uint256(signature.s, 16);
+    const r = uint256(signature.slice(0, 64), 16);
+    const s = uint256(signature.slice(64), 16);
     const e = uint256(hash, 16);
     const Q = [uint256(publicKey.slice(0, 64), 16), uint256(publicKey.slice(64), 16), uint256(1)]
 
-    // console.log(r)
-    // console.log(s)
-
-    // if (r <= 0 || r >= curve.n || s <= 0 || s >= curve.n) {
-    //     return false;
-    // }
+    if (r == 0 || s == 0 ) {
+        return false;
+    }
 
     const w = s.invm(curve.n);
     const u1 = mulmod(e, w, curve.n)
@@ -162,13 +152,6 @@ async function verify(hash, signature, publicKey) {
     const inv = P[2].invm(curve.p)
     P = [mulmod(P[0], mulmod(inv, inv, curve.p), curve.p),
          mulmod(P[1], mulmod(inv, mulmod(inv, inv, curve.p), curve.p), curve.p)]
-
-    // console.log(r)
-    // console.log(P[0])
-
-    if (P === null) {
-        return false;
-    }
 
     return r.eq(P[0]);
 }
