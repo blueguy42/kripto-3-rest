@@ -16,7 +16,7 @@ function printHexa16bytes(b) {
 function bytesToChar(b) {
     let str = "";
     for (let i = 0; i < b.length; i++) {
-        str += String.fromCharCode(b);
+        str += String.fromCharCode(b[i]);
     }
     return str;
 }
@@ -48,14 +48,14 @@ function keySchedule(key, num=16) {
 function r4Shift(x) {
     // 4-byte (32 bits) right shift of 16 bytes number (or 128 bit)
     let num = BigInt("0x" + Buffer.from(x).toString('hex'));
-    let shifted = ((num >> BigInt(32)) & BigInt("0xffffffffffffffffffffffff")) | ((num << BigInt(96)) & BigInt("0xffffffffffffffffffffffff00000000000000000000000000000000"));
+    let shifted = ((num >> BigInt(32)) & BigInt("0xffffffffffffffffffffffff")) | ((num << BigInt(96)) & (BigInt("0xffffffff") << BigInt(96)));
     return Buffer.from(shifted.toString(16).padStart(32, '0'), 'hex');
 }
   
 function r4Shift_reverse(x) {
     // reverse of r4Shift
     let num = BigInt("0x" + Buffer.from(x).toString('hex'));
-    let shifted = ((num << BigInt(32)) & BigInt("0xffffffffffffffffffffffff0000000000000000")) | ((num >> BigInt(96)) & BigInt("0xffffffff"));
+    let shifted = ((num << BigInt(32)) & (BigInt("0xffffffffffffffffffffffff") << BigInt(32))) | ((num >> BigInt(96)) & BigInt("0xffffffff"));
     return Buffer.from(shifted.toString(16).padStart(32, '0'), 'hex');
 }
 
@@ -85,7 +85,7 @@ function S1Process(x){
         bytes[i] = S1[hi][lo];
     }
 
-    return bytes;
+    return Buffer.from(bytes, 'hex');
 }
 
 function S1Process_reverse(x){
@@ -114,7 +114,7 @@ function S1Process_reverse(x){
         bytes[i] = S1_inv[hi][lo];
     }
 
-    return bytes;
+    return Buffer.from(bytes, 'hex');
 }
 
 function P1Process(x){
@@ -130,25 +130,29 @@ function P1Process(x){
     
     let bins = new Uint8Array(128);
     for (let i = 0; i < 16; i++) {
-        let bin = hex2bin(x[i]);
+        let bin = x[i].toString(2).padStart(8, '0');
         for (let j = 0; j < 8; j++) {
-            bins[i * 8 + j] = parseInt(hex2bin(x[i])[j]);
+            bins[i * 8 + j] = bin[j];
         }
     }
-    
+
     // permutation
     let bins2 = new Uint8Array(128);
     for (let i = 0; i < 128; i++) {
         bins2[i] = bins[P1[i]];
     }
     
-    let hexa = '';
+    let bytes = new Uint8Array(16);
     for (let i = 0; i < 16; i++) {
-        let byte = parseInt(bin2hex(bins2.subarray(i * 8, (i + 1) * 8).join('')), 16);
-        hexa += String.fromCharCode(byte);
+        let byte = "";
+        for (let j = 0; j < 8; j++) {
+            byte += bins2[i * 8 + j];
+        }
+        byte = parseInt(bin2hex(byte), 16);
+        bytes[i] = byte; 
     }
     
-    return hexa;
+    return Buffer.from(bytes, 'hex');
 }
 
 function P1Process_reverse(x){
@@ -164,43 +168,44 @@ function P1Process_reverse(x){
     
     let bins = new Uint8Array(128);
     for (let i = 0; i < 16; i++) {
-        let bin = hex2bin(x[i]);
+        let bin = x[i].toString(2).padStart(8, '0');
         for (let j = 0; j < 8; j++) {
-            bins[i * 8 + j] = parseInt(hex2bin(x[i])[j]);
+            bins[i * 8 + j] = bin[j];
         }
     }
-    
+
     // permutation
     let bins2 = new Uint8Array(128);
     for (let i = 0; i < 128; i++) {
         bins2[i] = bins[P1_inv[i]];
     }
     
-    let hexa = '';
+    let bytes = new Uint8Array(16);
     for (let i = 0; i < 16; i++) {
-        let byte = parseInt(bin2hex(bins2.subarray(i * 8, (i + 1) * 8).join('')), 16);
-        hexa += String.fromCharCode(byte);
+        let byte = "";
+        for (let j = 0; j < 8; j++) {
+            byte += bins2[i * 8 + j];
+        }
+        byte = parseInt(bin2hex(byte), 16);
+        bytes[i] = byte; 
     }
     
-    return hexa;
+    return Buffer.from(bytes, 'hex');
 }
 
 async function encrypt(plaintext, key, IV='\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0', num_rounds=16) {
     key = charToBytes(key);
-    console.log(key);
     IV = charToBytes(IV);
-    console.log(IV);
     if (key.length !== 16 || IV.length !== 16) {
         console.log("ERROR! Key must be 16 bytes long");
         return [];
     }
     plaintext = charToBytes(plaintext);
-    console.log(plaintext)
+    console.log("plaintext: ", plaintext)
 
     // add padding to plaintext to be multiple of 16
     let padding = new Uint8Array(16 - plaintext.length % 16);
     plaintext = new Uint8Array([...plaintext, ...padding]);
-    console.log(plaintext)
     
     // split plaintext into blocks of 16 bytes
     let blocks = [];
@@ -229,7 +234,7 @@ async function encrypt(plaintext, key, IV='\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0', nu
                 acc[index] = val ^ k[index]
                 return acc
             }, Buffer.alloc(16));
-            
+
             blocks[i] = P1Process(blocks[i]);
             blocks[i] = r4Shift(blocks[i]);
             blocks[i] = S1Process(blocks[i]);
@@ -241,11 +246,10 @@ async function encrypt(plaintext, key, IV='\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0', nu
     for (let block of blocks) {
         ciphertext = new Uint8Array([...ciphertext, ...block]);
     }
-    console.log(ciphertext)
-    ciphertext = bytesToChar(ciphertext)
-
-    text = decrypt(ciphertext, "E)H+MbQeThWmZq4t")
-    console.log(text)
+    console.log(Buffer.from(ciphertext, 'hex'));
+    console.log(ciphertext);
+    ciphertext = bytesToChar(ciphertext);
+    console.log(ciphertext);
     
     return ciphertext;
 }
@@ -259,10 +263,11 @@ async function decrypt(ciphertext, key, IV = '\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0',
     }
     ciphertext = charToBytes(ciphertext);
     // ciphertext = new Uint8Array([
-    //     80, 110, 252, 214,  96,  72, 228, 252,
-    //     72,  46, 151,  17, 252, 252, 252, 252,
-    //     28,  72,  53,  72, 217, 225,   4, 187,
-    //     79, 245,  72, 216, 252, 252, 252, 252
+    //     128, 141,  88, 131, 190, 207, 140,
+    //     186, 250, 105, 239,  71, 186, 222,
+    //     143, 159, 171,  92, 154,  85, 183,
+    //      10, 198, 223, 158, 208,  87,  17,
+    //       7, 220, 148,  96
     //   ]);
     // split ciphertext into blocks of 16 bytes
     let blocks = [];
@@ -276,24 +281,26 @@ async function decrypt(ciphertext, key, IV = '\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0',
     keys = keys.reverse();
 
     // encrypt each block
+    let count = 0;
     for (let k of keys) {
+        count++;
         for (let i = 0; i < resultingBlock.length; i++) {
             resultingBlock[i] = S1Process_reverse(blocks[i]);
             resultingBlock[i] = r4Shift_reverse(resultingBlock[i]);
             resultingBlock[i] = P1Process_reverse(resultingBlock[i]);
 
-            blocks[i] = Buffer.from(resultingBlock[i]).reduce((acc, val, index) => {
+            resultingBlock[i] = Buffer.from(resultingBlock[i]).reduce((acc, val, index) => {
                 acc[index] = val ^ k[index]
                 return acc
             }, Buffer.alloc(16));
 
             if (i === 0) {
-                blocks[i] = Buffer.from(resultingBlock[i]).reduce((acc, val, index) => {
+                resultingBlock[i] = Buffer.from(resultingBlock[i]).reduce((acc, val, index) => {
                     acc[index] = val ^ IV[index]
                     return acc
                 }, Buffer.alloc(16));
             } else {
-                blocks[i] = Buffer.from(resultingBlock[i]).reduce((acc, val, index) => {
+                resultingBlock[i] = Buffer.from(resultingBlock[i]).reduce((acc, val, index) => {
                     acc[index] = val ^ blocks[i-1][index]
                     return acc
                 }, Buffer.alloc(16));
@@ -308,8 +315,19 @@ async function decrypt(ciphertext, key, IV = '\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0',
         plaintext = new Uint8Array([...plaintext, ...block]);
     }
 
-    console.log(plaintext)
-    plaintext = bytesToChar(plaintext)
+    // remove 0 padding in behind plaintext
+    let padding = 0;
+    for (let i = plaintext.length - 1; i >= 0; i--) {
+        if (plaintext[i] === 0) {
+            padding++;
+        } else {
+            break;
+        }
+    }
+    plaintext = plaintext.subarray(0, plaintext.length - padding);
+    console.log(plaintext);
+    plaintext = bytesToChar(plaintext);
+    console.log(plaintext);
 
     return plaintext;
 }
