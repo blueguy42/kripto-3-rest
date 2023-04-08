@@ -52,8 +52,9 @@ router.post('/sign', async (req, res) => {
   try {
     const { message, privateKey } = req.body;
     const hashed = await crypto.sha3.hash(message);
-    const response = await crypto.ecdsa.sign(hashed, privateKey);
-    res.status(200).json({ signature: response });
+    const signature = await crypto.ecdsa.sign(hashed, privateKey);
+    const signedText = message + "\n" + "<ds>" + signature + "</ds>";
+    res.status(200).json({ signedText: signedText });
   } catch (err) {
     console.error(err);
     res.status(500).json({ msg: err.message });
@@ -62,7 +63,9 @@ router.post('/sign', async (req, res) => {
 
 router.post('/verify', async (req, res) => {
   try {
-    const { message, signature, publicKey } = req.body;
+    const { signedText, publicKey } = req.body;
+    const message = signedText.split("\n")[0];
+    const signature = signedText.split("<ds>")[1].split("</ds>")[0];
     const hashed = await crypto.sha3.hash(message);
     const response = await crypto.ecdsa.verify(hashed, signature, publicKey);
     res.status(200).json({ valid: response });
@@ -97,9 +100,14 @@ router.post('/getPublicKey', async (req, res) => {
 
 router.post('/encrypt', async (req, res) => {
   try {
-    const { plaintext, key } = req.body;
-    const response = await crypto.omnium.encrypt(plaintext, key);
-    res.status(200).json({ ciphertext : response });
+    const { plaintext, symmetricKey, iv } = req.body;
+    if (!iv) {
+      const response = await crypto.omnium.encrypt(plaintext, symmetricKey);
+      res.status(200).json({ ciphertext : response });
+    } else {
+      const response = await crypto.omnium.encrypt(plaintext, symmetricKey, iv);
+      res.status(200).json({ ciphertext : response });
+    }
   } catch (err) {
     console.error(err);
     res.status(500).json({ msg: err.message });
@@ -108,9 +116,53 @@ router.post('/encrypt', async (req, res) => {
 
 router.post('/decrypt', async (req, res) => {
   try {
-    const { ciphertext, key } = req.body;
-    const response = await crypto.omnium.encrypt(ciphertext, key);
-    res.status(200).json({ plaintext : response });
+    const { ciphertext, symmetricKey, iv } = req.body;
+    if (!iv) {
+      const response = await crypto.omnium.decrypt(ciphertext, symmetricKey);
+      res.status(200).json({ plaintext : response });
+    } else {
+      const response = await crypto.omnium.decrypt(ciphertext, symmetricKey, iv);
+      res.status(200).json({ plaintext : response });
+    }
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ msg: err.message });
+  }
+});
+
+router.post('/sign-encrypt', async (req, res) => {
+  try {
+    const { plaintext, privateKey, iv, symmetricKey } = req.body;
+    const hashed = await crypto.sha3.hash(plaintext);
+    const signature = await crypto.ecdsa.sign(hashed, privateKey);
+    const signedText = plaintext + '\n' + '<ds>' + signature + '</ds>';
+    if (!iv) {
+      const response = await crypto.omnium.encrypt(signedText, symmetricKey);
+      res.status(200).json({ ciphertext : response});
+    } else {
+      const response = await crypto.omnium.encrypt(plaintext, symmetricKey, iv);
+      res.status(200).json({ ciphertext : response});
+    }
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ msg: err.message });
+  }
+});
+
+router.post('/decrypt-verify', async (req, res) => {
+  try {
+    const { ciphertext, publicKey, iv, symmetricKey } = req.body;
+    let plaintext;
+    if (!iv) {
+      plaintext = await crypto.omnium.decrypt(ciphertext, symmetricKey);
+    } else {
+      plaintext = await crypto.omnium.decrypt(ciphertext, symmetricKey, iv);
+    }
+    const message = plaintext.split("\n")[0];
+    const signature = plaintext.split("<ds>")[1].split("</ds>")[0];
+    const hashed = await crypto.sha3.hash(message);
+    const response = await crypto.ecdsa.verify(hashed, signature, publicKey);
+    res.status(200).json({ plaintext: plaintext, valid: response });
   } catch (err) {
     console.error(err);
     res.status(500).json({ msg: err.message });
