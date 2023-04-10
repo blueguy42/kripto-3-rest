@@ -2,7 +2,7 @@ const express = require('express');
 const cors = require('cors');
 require('dotenv').config();
 
-const routes = require('./routes');
+const routes = require('./api');
 
 const app = express();
 
@@ -14,11 +14,11 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // Routes
-app.get('/', (req, res) => {
+app.get('/api/', (req, res) => {
   res.send('Hello, world!');
 });
 
-app.use('/key', routes.key);
+app.use('/api/key', routes.key);
 
 app.listen(process.env.PORT, () => {
   console.log('Kripto 3 REST service started on port 3000');
