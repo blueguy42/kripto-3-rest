@@ -2,10 +2,10 @@
   "name": "kripto-3-rest",
   "version": "1.0.0",
   "description": "A REST service for Kripto 3",
-  "main": "app.js",
+  "main": "index.js",
   "scripts": {
-    "start": "node app.js",
-    "dev": "nodemon app.js"
+    "start": "node index.js",
+    "dev": "nodemon index.js"
   },
   "author": "",
   "license": "ISC",
