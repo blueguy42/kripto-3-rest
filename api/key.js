@@ -64,8 +64,9 @@ router.post('/sign', async (req, res) => {
 router.post('/verify', async (req, res) => {
   try {
     const { signedText, publicKey } = req.body;
-    const message = signedText.split("\n")[0];
-    const signature = signedText.split("<ds>")[1].split("</ds>")[0];
+    const lastNewlineIndex = signedText.lastIndexOf("\n");
+    const message = signedText.slice(0, lastNewlineIndex);
+    const signature = signedText.slice(lastNewlineIndex + 1).split("<ds>")[1].split("</ds>")[0];
     const hashed = await crypto.sha3.hash(message);
     const response = await crypto.ecdsa.verify(hashed, signature, publicKey);
     res.status(200).json({ valid: response });
