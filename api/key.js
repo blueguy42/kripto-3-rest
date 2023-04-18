@@ -159,8 +159,9 @@ router.post('/decrypt-verify', async (req, res) => {
     } else {
       plaintext = await crypto.omnium.decrypt(ciphertext, symmetricKey, iv);
     }
-    const message = plaintext.split("\n")[0];
-    const signature = plaintext.split("<ds>")[1].split("</ds>")[0];
+    const lastNewlineIndex = signedText.lastIndexOf("\n");
+    const message = plaintext.slice(0, lastNewlineIndex);
+    const signature = plaintext.slice(lastNewlineIndex + 1).split("<ds>")[1].split("</ds>")[0];
     const hashed = await crypto.sha3.hash(message);
     const response = await crypto.ecdsa.verify(hashed, signature, publicKey);
     res.status(200).json({ plaintext: plaintext, valid: response });
