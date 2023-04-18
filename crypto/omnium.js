@@ -246,11 +246,9 @@ async function encrypt(plaintext, key, IV='\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0', nu
     for (let block of blocks) {
         ciphertext = new Uint8Array([...ciphertext, ...block]);
     }
-    console.log(Buffer.from(ciphertext, 'hex'));
-    console.log(ciphertext);
-    ciphertext = bytesToChar(ciphertext);
-    console.log(ciphertext);
-    
+
+    ciphertext = Buffer.from(ciphertext, 'hex').toString('base64');
+
     return ciphertext;
 }
 
@@ -261,7 +259,8 @@ async function decrypt(ciphertext, key, IV = '\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0',
         console.log("ERROR! Key must be 16 bytes long");
         return [];
     }
-    ciphertext = charToBytes(ciphertext);
+    ciphertext = Buffer.from(ciphertext, 'base64').toString('hex');
+    ciphertext = new Uint8Array(ciphertext.match(/.{1,2}/g).map(byte => parseInt(byte, 16)));
     // ciphertext = new Uint8Array([
     //     128, 141,  88, 131, 190, 207, 140,
     //     186, 250, 105, 239,  71, 186, 222,
